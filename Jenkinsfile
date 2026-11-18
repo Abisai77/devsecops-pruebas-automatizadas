@@ -47,18 +47,19 @@ pipeline {
         stage('Security Test') {
             steps {
                 echo '--- ETAPA 5: SECURITY TEST (OWASP Dependency-Check y OWASP ZAP) ---'
-                dependencyCheck additionalArguments: '--scan ./requirements.txt --disableNvd --format HTML --format XML --out ./odc-reports', odcInstallation: 'DP-Check'
+                dependencyCheck additionalArguments: '--scan ./requirements.txt --noupdate --format HTML --format XML --out ./odc-reports', odcInstallation: 'DP-Check'
                 dependencyCheckPublisher pattern: 'odc-reports/dependency-check-report.xml'
 
                 sh '''
                     mkdir -p zap-reports
-                    chmod -R 777 zap-reports
-                    docker run --rm --network devsecops-net \
-                      --volumes-from jenkins-322 \
-                      -w /var/jenkins_home/workspace/${JOB_NAME}/zap-reports \
+                    docker rm -f zap-scanner || true
+                    docker run --name zap-scanner --network devsecops-net \
+                      --mount type=tmpfs,destination=/zap/wrk \
                       ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
                       -t http://flask-vuln-app:5000/hello?name=TEST \
                       -r zap_report.html || true
+                    docker cp zap-scanner:/zap/wrk/zap_report.html ./zap-reports/zap_report.html
+                    docker rm -f zap-scanner || true
                 '''
             }
         }
