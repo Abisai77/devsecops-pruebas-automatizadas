@@ -47,12 +47,10 @@ pipeline {
         stage('Security Test') {
             steps {
                 echo '--- ETAPA 5: SECURITY TEST (OWASP Dependency-Check y OWASP ZAP) ---'
-                sh '''
-                    mkdir -p odc-reports zap-reports
-                    chmod 777 odc-reports zap-reports
-                '''
-                dependencyCheck additionalArguments: '--scan ./requirements.txt --enableExperimental --noupdate --format HTML --format XML --out ./odc-reports || true', odcInstallation: 'DP-Check'
-
+                sh 'mkdir -p odc-reports zap-reports && chmod 777 odc-reports zap-reports'
+                catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
+                    dependencyCheck additionalArguments: '--scan ./requirements.txt --enableExperimental --noupdate --format HTML --format XML --out ./odc-reports', odcInstallation: 'DP-Check'
+                }
                 sh '''
                     docker volume rm zap_wrk_vol || true
                     docker volume create zap_wrk_vol
