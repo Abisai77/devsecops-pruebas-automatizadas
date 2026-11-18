@@ -47,19 +47,21 @@ pipeline {
         stage('Security Test') {
             steps {
                 echo '--- ETAPA 5: SECURITY TEST (OWASP Dependency-Check y OWASP ZAP) ---'
-                dependencyCheck additionalArguments: '--scan ./requirements.txt --noupdate --format HTML --format XML --out ./odc-reports', odcInstallation: 'DP-Check'
-                dependencyCheckPublisher pattern: 'odc-reports/dependency-check-report.xml'
+                sh '''
+                    mkdir -p odc-reports zap-reports
+                    chmod 777 odc-reports zap-reports
+                '''
+                dependencyCheck additionalArguments: '--scan ./requirements.txt --enableExperimental --noupdate --format HTML --format XML --out ./odc-reports || true', odcInstallation: 'DP-Check'
 
                 sh '''
-                    mkdir -p zap-reports
-                    docker rm -f zap-scanner || true
-                    docker run --name zap-scanner --network devsecops-net \
-                      --mount type=tmpfs,destination=/zap/wrk \
+                    docker volume rm zap_wrk_vol || true
+                    docker volume create zap_wrk_vol
+                    docker run --rm -u 0 --network devsecops-net \
+                      -v zap_wrk_vol:/zap/wrk \
                       ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
                       -t http://flask-vuln-app:5000/hello?name=TEST \
                       -r zap_report.html || true
-                    docker cp zap-scanner:/zap/wrk/zap_report.html ./zap-reports/zap_report.html
-                    docker rm -f zap-scanner || true
+                    docker run --rm -v zap_wrk_vol:/zap/wrk busybox cat /zap/wrk/zap_report.html > ./zap-reports/zap_report.html
                 '''
             }
         }
